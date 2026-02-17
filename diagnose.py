@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-diagnose.py
-Tüm 7 drone portunu paralel test eder.
-Çalıştır: python3 diagnose.py
-Hangi port heartbeat vermiyor -> orada sorun var.
-"""
 
 import threading
 import time
