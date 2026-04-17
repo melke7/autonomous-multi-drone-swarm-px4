@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Drone Command Center — Swarm Monitor</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    :root {
+      --bg: #080d14;
+      --bg1: #0c1420;
+      --bg2: #101c2e;
+      --bg3: #142338;
+      --border: #1e3a5a;
+      --border2: #2a4f73;
+      --accent: #2dd4bf;
+      --accent2: #38bdf8;
+      --muted: #64748b;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --crit: #f87171;
+      --font: 'Inter', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 13px
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: var(--bg1);
+      border-bottom: 1px solid var(--border);
+      height: 50px;
+      flex-shrink: 0;
+      gap: 12px
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: var(--accent);
+      white-space: nowrap
+    }
+
+    .logo span {
+      color: var(--text2);
+      font-weight: 400
+    }
+
+    .conn-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .conn-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 10px;
+      width: 260px;
+      outline: none;
+      border-radius: 4px;
+      transition: border .2s
+    }
+
+    .conn-input:focus {
+      border-color: var(--accent)
+    }
+
+    .btn {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      padding: 5px 14px;
+      border: 1px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all .2s
+    }
+
+    .btn:hover {
+      background: var(--accent);
+      color: var(--bg)
+    }
+
+    .btn.sim {
+      border-color: var(--ok);
+      color: var(--ok)
+    }
+
+    .btn.sim:hover,
+    .btn.sim.on {
+      background: var(--ok);
+      color: var(--bg)
+    }
+
+    .sdot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--crit);
+      flex-shrink: 0;
+      transition: background .3s
+    }
+
+    .sdot.live {
+      background: var(--ok);
+      animation: pulse 2s infinite
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, .4)
+      }
+
+      50% {
+        opacity: .8;
+        box-shadow: 0 0 0 5px rgba(52, 211, 153, 0)
+      }
+    }
+
+    .slbl {
+      font-size: 10px;
+      color: var(--text2);
+      font-family: var(--mono)
+    }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden
+    }
+
+    .left {
+      width: 240px;
+      background: var(--bg1);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden
+    }
+
+    .ph {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--muted);
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase
+    }
+
+    .ph .cnt {
+      color: var(--accent);
+      font-size: 14px
+    }
+
+    .dlist {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px
+    }
+
+    .dlist::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .dlist::-webkit-scrollbar-thumb {
+      background: var(--border2)
+    }
+
+    .dc {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 10px 11px;
+      cursor: pointer;
+      transition: all .2s;
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden
+    }
+
+    .dc * {
+      pointer-events: none
+    }
+
+    .dc::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--ok);
+      border-radius: 3px 0 0 3px;
+      transition: background .3s
+    }
+
+    .dc.warn::before {
+      background: var(--warn)
+    }
+
+    .dc.crit::before {
+      background: var(--crit);
+      animation: blink .8s infinite
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .3
+      }
+    }
+
+    .dc:hover,
+    .dc.sel {
+      border-color: var(--accent2);
+      background: var(--bg3)
+    }
+
+    .dc.sel {
+      border-color: var(--accent)
+    }
+
+    .dch {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 7px
+    }
+
+    .did {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent)
+    }
+
+    .dst {
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      border: 1px solid var(--ok);
+      color: var(--ok);
+      font-family: var(--mono)
+    }
+
+    .dst.warn {
+      border-color: var(--warn);
+      color: var(--warn)
+    }
+
+    .dst.crit {
+      border-color: var(--crit);
+      color: var(--crit)
+    }
+
+    .mg {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      margin-bottom: 7px
+    }
+
+    .met {
+      background: var(--bg);
+      border-radius: 4px;
+      padding: 5px 7px
+    }
+
+    .ml {
+      font-size: 8px;
+      color: var(--muted);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      margin-bottom: 2px
+    }
+
+    .mv {
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--text);
+      line-height: 1
+    }
+
+    .mv .u {
+      font-size: 9px;
+      color: var(--text2)
+    }
+
+    .bb {
+      height: 3px;
+      background: var(--bg);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 5px
+    }
+
+    .bf {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .5s, background .5s
+    }
+
+    .blbl {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: var(--text2);
+      font-family: var(--mono);
+      margin-top: 4px
+    }
+
+    .pos {
+      font-size: 8px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: .3px;
+      margin-top: 3px
+    }
+
+    .map-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden
+    }
+
+    #map {
+      width: 100%;
+      height: 100%
+    }
+
+    .map-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(45, 212, 191, .006) 3px, rgba(45, 212, 191, .006) 4px);
+      pointer-events: none;
+      z-index: 900
+    }
+
+    .ov {
+      position: absolute;
+      z-index: 1000;
+      font-family: var(--mono);
+      pointer-events: none
+    }
+
+    .ov.ia {
+      pointer-events: all
+    }
+
+    .ob {
+      background: rgba(8, 13, 20, .9);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      border-radius: 6px
+    }
+
+    .otitle {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      margin-bottom: 8px;
+      text-transform: uppercase
+    }
+
+    .sr {
+      font-size: 10px;
+      color: var(--text2);
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between
+    }
+
+    .sr strong {
+      color: var(--text)
+    }
+
+    .li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 10px;
+      color: var(--text2)
+    }
+
+    .lc {
+      width: 20px;
+      height: 10px;
+      border-radius: 2px;
+      border: 1px solid rgba(255, 255, 255, .1)
+    }
+
+    .right {
+      width: 340px;
+      background: var(--bg1);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0
+    }
+
+    .tab {
+      flex: 1;
+      padding: 8px 4px;
+      text-align: center;
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: 1px;
+      color: var(--text2);
+      cursor: pointer;
+      transition: all .2s;
+      border-bottom: 2px solid transparent;
+      text-transform: uppercase
+    }
+
+    .tab:hover {
+      color: var(--text);
+      background: var(--bg2)
+    }
+
+    .tab.on {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: var(--bg2)
+    }
+
+    .rpanel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px
+    }
+
+    .rpanel::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .rpanel::-webkit-scrollbar-thumb {
+      background: var(--border2)
+    }
+
+    .sec {
+      margin-bottom: 14px
+    }
+
+    .sec-title {
+      font-size: 9px;
+      font-family: var(--mono);
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .axes-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 8px
+    }
+
+    .axis-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px
+    }
+
+    .axis-lbl {
+      font-size: 8px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px
+    }
+
+    .axis-val {
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px
+    }
+
+    .axis-val .u {
+      font-size: 10px;
+      color: var(--text2);
+      font-weight: 400
+    }
+
+    .axis-bar {
+      height: 6px;
+      background: var(--bg);
+      border-radius: 3px;
+      overflow: visible;
+      position: relative;
+      margin-top: 4px
+    }
+
+    .axis-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .3s, background .3s;
+      position: absolute;
+      top: 0
+    }
+
+    .axis-center {
+      position: absolute;
+      left: 50%;
+      top: -1px;
+      width: 1px;
+      height: 8px;
+      background: var(--border2)
+    }
+
+    .thr-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center
+    }
+
+    .thr-bar-wrap {
+      width: 24px;
+      height: 80px;
+      background: var(--bg);
+      border-radius: 3px;
+      position: relative;
+      overflow: hidden
+    }
+
+    .thr-fill {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: height .3s
+    }
+
+    .thr-info {
+      flex: 1
+    }
+
+    .sparkline-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 6px
+    }
+
+    .spark-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px
+    }
+
+    .spark-lbl {
+      font-size: 9px;
+      color: var(--muted);
+      font-family: var(--mono);
+      letter-spacing: 1px;
+      text-transform: uppercase
+    }
+
+    .spark-val {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent)
+    }
+
+    .spark-val .u {
+      font-size: 9px;
+      color: var(--text2)
+    }
+
+    svg.spark {
+      display: block;
+      overflow: visible
+    }
+
+    .tlog {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden
+    }
+
+    .tlog-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tlog-title {
+      font-size: 9px;
+      font-family: var(--mono);
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: var(--muted);
+      text-transform: uppercase
+    }
+
+    .hz-badge {
+      font-size: 8px;
+      font-family: var(--mono);
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: rgba(45, 212, 191, .1);
+      color: var(--accent);
+      border: 1px solid rgba(45, 212, 191, .3)
+    }
+
+    .tlog-entries {
+      max-height: 180px;
+      overflow-y: auto
+    }
+
+    .tlog-entries::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .tlog-entries::-webkit-scrollbar-thumb {
+      background: var(--border)
+    }
+
+    .tentry {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr 1fr 1fr;
+      gap: 4px;
+      padding: 5px 10px;
+      border-bottom: 1px solid rgba(30, 58, 90, .4);
+      font-family: var(--mono);
+      font-size: 9px;
+      align-items: center;
+      transition: background .2s
+    }
+
+    .tentry:hover {
+      background: var(--bg3)
+    }
+
+    .tentry:last-child {
+      border-bottom: none
+    }
+
+    .te-time {
+      color: var(--muted);
+      font-size: 8px
+    }
+
+    .te-val {
+      color: var(--text);
+      text-align: right
+    }
+
+    .te-lbl {
+      color: var(--muted);
+      font-size: 8px
+    }
+
+    .all-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 5px
+    }
+
+    .mini-drone {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px;
+      cursor: pointer;
+      transition: all .2s
+    }
+
+    .mini-drone * {
+      pointer-events: none
+    }
+
+    .mini-drone:hover,
+    .mini-drone.sel {
+      border-color: var(--accent)
+    }
+
+    .mini-id {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 4px
+    }
+
+    .mini-stat {
+      font-size: 8px;
+      color: var(--text2);
+      font-family: var(--mono)
+    }
+
+    footer {
+      height: 26px;
+      background: var(--bg1);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 20px;
+      font-size: 9px;
+      color: var(--text2);
+      font-family: var(--mono);
+      flex-shrink: 0
+    }
+
+    footer strong {
+      color: var(--text)
+    }
+
+    .leaflet-container {
+      background: #050a10;
+      font-family: var(--mono)
+    }
+
+    /* CartoDB dark tiles zaten koyu — filtre sadece satellite için kapatılır */
+    .leaflet-tile {
+      filter: none
+    }
+
+    .map-satellite .leaflet-tile {
+      filter: none
+    }
+
+    .leaflet-control-zoom a {
+      background: var(--bg2) !important;
+      color: var(--accent) !important;
+      border-color: var(--border) !important;
+      border-radius: 4px !important
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(8, 13, 20, .7) !important;
+      color: var(--muted) !important;
+      font-size: 8px !important
+    }
+
+    .dtip {
+      background: var(--bg1) !important;
+      border: 1px solid var(--accent2) !important;
+      color: var(--text) !important;
+      font-family: var(--mono) !important;
+      font-size: 10px !important;
+      padding: 6px 9px !important;
+      border-radius: 4px !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, .5) !important
+    }
+
+    .dtip::before {
+      display: none !important
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="logo">◈ DRONE <span>COMMAND CENTER</span></div>
+    <div class="conn-bar">
+      <div class="sdot" id="dot"></div>
+      <span class="slbl" id="statusLbl">DISCONNECTED</span>
+      <input class="conn-input" id="wsUrl" value="ws://localhost:4000/v1/mavlink" placeholder="mavlink2rest WebSocket">
+      <button class="btn" onclick="connectWS()">▶ CONNECT</button>
+      <button class="btn sim" id="simBtn" onclick="toggleSim()">⚙ SIM MODE</button>
+      <button class="btn" id="tileBtn" onclick="cycleTile()" style="border-color:var(--muted);color:var(--muted)">🗺
+        DARK</button>
+    </div>
+  </header>
+  <div class="main">
+    <div class="left">
+      <div class="ph">FLEET <div class="cnt" id="cntDisp">0</div>
+      </div>
+      <div class="dlist" id="droneList"></div>
+    </div>
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="ov ob" style="top:10px;left:10px;padding:10px 14px">
+        <div class="otitle">Fleet Status</div>
+        <div class="sr"><span>ACTIVE</span><strong id="sA">0</strong></div>
+        <div class="sr"><span>AVG ALT</span><strong id="sAlt">—</strong></div>
+        <div class="sr"><span>AVG SPD</span><strong id="sSpd">—</strong></div>
+        <div class="sr"><span>AVG BAT</span><strong id="sBat">—</strong></div>
+      </div>
+      <div class="ov ob ia" style="bottom:34px;right:10px;padding:10px 14px">
+        <div class="otitle">Traffic Density</div>
+        <div class="li">
+          <div class="lc" style="background:rgba(52,211,153,.25)"></div>LOW — 1 drone
+        </div>
+        <div class="li">
+          <div class="lc" style="background:rgba(251,191,36,.35)"></div>MEDIUM — 2-3
+        </div>
+        <div class="li">
+          <div class="lc" style="background:rgba(248,113,113,.45)"></div>HIGH — 4+
+        </div>
+        <div class="sr" style="margin-top:6px"><span>ZONES</span><strong id="sZones">—</strong></div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="tabs">
+        <div class="tab on" id="tab-detail" onclick="switchTab('detail')">TELEMETRY</div>
+        <div class="tab" id="tab-all" onclick="switchTab('all')">ALL DRONES</div>
+        <div class="tab" id="tab-gps" onclick="switchTab('gps')">GPS LIST</div>
+      </div>
+      <div class="rpanel" id="rPanel">
+        <div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:30px 0">
+          Select a drone to view telemetry
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer>
+    <span>UTC <strong id="clock">--:--:--</strong></span>
+    <span>MODE <strong id="modeLbl">STANDBY</strong></span>
+    <span>REFRESH <strong>100ms</strong></span>
+    <span>GRID <strong>20×15</strong></span>
+    <span style="margin-left:auto;color:var(--muted)">PX4 SITL · mavlink2rest</span>
+  </footer>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+
+    const HOME = { lat: 37.4135, lon: -121.9966 };
+    const GRID_COLS = 20, GRID_ROWS = 15;
+    let drones = {}, markers = {}, trails = {}, gridLayers = [];
+    let simRunning = false, simInterval = null, simTime = 0;
+    let ws = null, selId = null, activeTab = 'detail';
+    let tlogHistory = {};
+
+    const map = L.map('map', { center: [HOME.lat, HOME.lon], zoom: 18, zoomControl: false, maxZoom: 19 });
+
+    // Tile katmanları — Esri Hybrid (uydu + etiket) varsayılan
+    const esriSat = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: '© Esri © Maxar © Airbus', maxZoom: 19 }
+    );
+    const esriLabels = L.tileLayer(
+      'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19, pane: 'overlayPane' }
+    );
+    const cartoDark = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      { attribution: '© CARTO © OSM', subdomains: 'abcd', maxZoom: 19 }
+    );
+    const esriPureSat = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: '© Esri', maxZoom: 19 }
+    );
+
+    const TILE_MODES = [
+      { key: 'hybrid', label: 'HYBRID', layers: [esriSat, esriLabels] },
+      { key: 'dark', label: 'DARK', layers: [cartoDark] },
+      { key: 'sat', label: 'SAT', layers: [esriPureSat] },
+    ];
+    let tileIdx = 0;
+
+    function applyTileMode(idx) {
+      // Mevcut katmanları kaldır
+      [esriSat, esriLabels, cartoDark, esriPureSat].forEach(l => { try { map.removeLayer(l); } catch { } });
+      TILE_MODES[idx].layers.forEach(l => l.addTo(map));
+      const lbl = TILE_MODES[idx].label;
+      document.getElementById('tileBtn').textContent = '🗺 ' + lbl;
+    }
+
+    function cycleTile() {
+      tileIdx = (tileIdx + 1) % TILE_MODES.length;
+      applyTileMode(tileIdx);
+    }
+
+    // Başlangıç: Hybrid
+    applyTileMode(0);
+
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    map.on('moveend zoomend', updateTrafficGrid);
+
+    function droneIcon(hdg, status) {
+      const c = status === 'crit' ? '#f87171' : status === 'warn' ? '#fbbf24' : '#34d399';
+      const glow = status === 'crit' ? 'rgba(248,113,113,0.5)' : status === 'warn' ? 'rgba(251,191,36,0.4)' : 'rgba(45,212,191,0.4)';
+      const svg = `<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"
+    style="transform:rotate(${hdg}deg);filter:drop-shadow(0 0 5px ${glow})">
+    <circle cx="16" cy="16" r="14" fill="rgba(8,13,20,0.75)" stroke="${c}" stroke-width="1.5"/>
+    <polygon points="16,4 21,22 16,19 11,22" fill="${c}"/>
+    <circle cx="16" cy="16" r="2.5" fill="${c}"/>
+    <line x1="7" y1="7" x2="11" y2="11" stroke="${c}" stroke-width="1.5"/>
+    <line x1="25" y1="7" x2="21" y2="11" stroke="${c}" stroke-width="1.5"/>
+    <line x1="7" y1="25" x2="11" y2="21" stroke="${c}" stroke-width="1.5"/>
+    <line x1="25" y1="25" x2="21" y2="21" stroke="${c}" stroke-width="1.5"/>
+    <circle cx="11" cy="11" r="2" fill="none" stroke="${c}" stroke-width="1"/>
+    <circle cx="21" cy="11" r="2" fill="none" stroke="${c}" stroke-width="1"/>
+    <circle cx="11" cy="21" r="2" fill="none" stroke="${c}" stroke-width="1"/>
+    <circle cx="21" cy="21" r="2" fill="none" stroke="${c}" stroke-width="1"/>
+  </svg>`;
+      return L.divIcon({ html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
+    }
+
+    function clearDrones() {
+      Object.values(markers).forEach(m => map.removeLayer(m));
+      Object.values(trails).forEach(t => map.removeLayer(t));
+      gridLayers.forEach(l => map.removeLayer(l));
+      drones = {}; markers = {}; trails = {}; tlogHistory = {}; gridLayers = [];
+      const dl = document.getElementById('droneList');
+      if (dl) dl.innerHTML = '';
+      selId = null;
+      document.getElementById('cntDisp').textContent = '0';
+      if (activeTab === 'detail') document.getElementById('rPanel').innerHTML = '<div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:30px 0">Select a drone</div>';
+      else renderAllPanel();
+      updateStats();
+    }
+
+    function upsertDrone(id, data) {
+      if (!drones[id]) {
+        drones[id] = {
+          id, lat: HOME.lat, lon: HOME.lon, alt: 0, speed: 0, battery: 100, heading: 0,
+          roll: 0, pitch: 0, yaw: 0, throttle: 0, status: 'ok', trail: [], ts: Date.now()
+        };
+        tlogHistory[id] = [];
+      }
+      Object.assign(drones[id], data);
+      drones[id].ts = Date.now();
+      const d = drones[id];
+      d.status = d.battery < 20 ? 'crit' : d.battery < 40 ? 'warn' : 'ok';
+
+      // Aynı konumdaki drone'ları küçük offset ile ayır (SITL spawn jitter)
+      // Her drone ID'sine özgü sabit mikro-offset (lat ~1m, lon ~1m per step)
+      const jLat = (id - 1) * 0.000009;   // ~1 m kuzey
+      const jLon = ((id - 1) % 3) * 0.000012 - 0.000012; // ~1m doğu/batı
+      const ll = [d.lat + jLat, d.lon + jLon];
+      if (!markers[id]) {
+        markers[id] = L.marker(ll, { icon: droneIcon(d.heading, d.status), zIndexOffset: 500 + id })
+          .bindTooltip('', { direction: 'top', className: 'dtip', offset: [0, -12] })
+          .addTo(map)
+          .on('click', () => selectDrone(id));
+        trails[id] = L.polyline([], { color: '#2dd4bf', weight: 1.2, opacity: 0.3, dashArray: '4,7' }).addTo(map);
+      }
+      markers[id].setLatLng(ll);
+      markers[id].setIcon(droneIcon(d.heading, d.status));
+      markers[id].setTooltipContent(
+        `<b>UAV-${String(id).padStart(2, '0')}</b><br>` +
+        `ALT: ${d.alt.toFixed(1)}m &nbsp; SPD: ${d.speed.toFixed(1)}m/s<br>` +
+        `BAT: ${d.battery.toFixed(0)}% &nbsp; HDG: ${d.heading.toFixed(0)}°<br>` +
+        `ROLL: ${d.roll.toFixed(1)}° &nbsp; PITCH: ${d.pitch.toFixed(1)}°`
+      );
+      d.trail.push([d.lat, d.lon]);
+      if (d.trail.length > 120) d.trail.shift();
+      trails[id].setLatLngs(d.trail);
+
+      // Telemetri log (son 5 kayıt)
+      tlogHistory[id].push({
+        t: Date.now(),
+        alt: d.alt, spd: d.speed, roll: d.roll, pitch: d.pitch, yaw: d.yaw, bat: d.battery
+      });
+      if (tlogHistory[id].length > 5) tlogHistory[id].shift();
+    }
+
+    function updateTrafficGrid() {
+      gridLayers.forEach(l => map.removeLayer(l));
+      gridLayers = [];
+      const b = map.getBounds();
+      const latS = (b.getNorth() - b.getSouth()) / GRID_ROWS;
+      const lonS = (b.getEast() - b.getWest()) / GRID_COLS;
+      const grid = {};
+      Object.values(drones).forEach(d => {
+        const col = Math.floor((d.lon - b.getWest()) / lonS);
+        const row = Math.floor((d.lat - b.getSouth()) / latS);
+        if (col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS) {
+          const k = `${row},${col}`; grid[k] = (grid[k] || 0) + 1;
+        }
+      });
+      let lo = 0, mid = 0, hi = 0;
+      Object.entries(grid).forEach(([k, cnt]) => {
+        const [row, col] = k.split(',').map(Number);
+        const sw = [b.getSouth() + row * latS, b.getWest() + col * lonS];
+        const ne = [sw[0] + latS, sw[1] + lonS];
+        let color, fo, so;
+        if (cnt >= 4) { color = '#f87171'; fo = .45; so = .35; hi++; }
+        else if (cnt >= 2) { color = '#fbbf24'; fo = .32; so = .28; mid++; }
+        else { color = '#34d399'; fo = .18; so = .2; lo++; }
+        const r = L.rectangle([sw, ne], { color, weight: .7, fillColor: color, fillOpacity: fo, opacity: so }).addTo(map);
+        gridLayers.push(r);
+      });
+      const total = lo + mid + hi;
+      document.getElementById('sZones').textContent = total ? `${lo}L ${mid}M ${hi}H` : '—';
+    }
+
+    function renderCard(id) {
+      const d = drones[id];
+      if (!d) return;
+      let card = document.getElementById(`dc-${id}`);
+      const isNew = !card;
+      if (isNew) {
+        card = document.createElement('div');
+        card.className = 'dc'; card.id = `dc-${id}`;
+        card.onclick = () => selectDrone(id);
+        const droneList = document.getElementById('droneList');
+        if (droneList) droneList.appendChild(card);
+      }
+      if (!card) return;
+      card.className = `dc ${d.status}${selId === id ? ' sel' : ''}`;
+      const bc = d.battery < 20 ? 'var(--crit)' : d.battery < 40 ? 'var(--warn)' : 'var(--ok)';
+      card.innerHTML = `
+    <div class="dch">
+      <div class="did">UAV-${String(id).padStart(2, '0')}</div>
+      <div class="dst ${d.status}">${d.status.toUpperCase()}</div>
+    </div>
+    <div class="mg">
+      <div class="met"><div class="ml">ALT</div><div class="mv">${d.alt.toFixed(1)}<span class="u"> m</span></div></div>
+      <div class="met"><div class="ml">SPD</div><div class="mv">${d.speed.toFixed(1)}<span class="u"> m/s</span></div></div>
+      <div class="met"><div class="ml">HDG</div><div class="mv">${d.heading.toFixed(0)}<span class="u"> °</span></div></div>
+      <div class="met"><div class="ml">BAT</div><div class="mv" style="color:${bc}">${d.battery.toFixed(0)}<span class="u"> %</span></div></div>
+    </div>
+    <div class="blbl"><span>CHARGE</span><span style="color:${bc}">${d.battery.toFixed(1)}%</span></div>
+    <div class="bb"><div class="bf" style="width:${d.battery}%;background:${bc}"></div></div>
+    <div class="pos">${d.lat.toFixed(5)}°N &nbsp;${d.lon.toFixed(5)}°E</div>`;
+      const cntDisp = document.getElementById('cntDisp');
+      if (cntDisp) cntDisp.textContent = Object.keys(drones).length;
+    }
+
+    function selectDrone(id) {
+      selId = id;
+      document.querySelectorAll('.dc').forEach(c => c.classList.remove('sel'));
+      const card = document.getElementById(`dc-${id}`);
+      if (card) card.classList.add('sel');
+      const d = drones[id];
+      if (d) map.panTo([d.lat, d.lon], { animate: true });
+      // Her zaman render et — veri yoksa waiting mesajı göster
+      if (activeTab === 'detail') renderDetailPanel(id);
+      else if (activeTab === 'all') { switchTab('detail'); }
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+      document.getElementById(`tab-${tab}`).classList.add('on');
+      if (tab === 'detail' && selId) renderDetailPanel(selId);
+      else if (tab === 'detail') document.getElementById('rPanel').innerHTML =
+        '<div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:30px 0">Select a drone</div>';
+      else if (tab === 'all') renderAllPanel();
+      else if (tab === 'gps') renderGpsPanel();
+    }
+
+    function sparklineSVG(data, color, w, h) {
+      if (!data || data.length < 2) return `<svg class="spark" width="${w}" height="${h}"></svg>`;
+      const min = Math.min(...data), max = Math.max(...data);
+      const range = max - min || 1;
+      const pts = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - (((v - min) / range) * (h - 4) + 2);
+        return `${x},${y}`;
+      }).join(' ');
+      return `<svg class="spark" width="${w}" height="${h}">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="${(data.length - 1) / (data.length - 1) * w}" cy="${h - (((data[data.length - 1] - min) / range) * (h - 4) + 2)}" r="2.5" fill="${color}"/>
+  </svg>`;
+    }
+
+    function axisBarHTML(val, min, max, color) {
+      const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+      const mid = ((0 - min) / (max - min)) * 100;
+      const left = Math.min(pct, mid), width = Math.abs(pct - mid);
+      return `<div class="axis-bar">
+    <div class="axis-fill" style="left:${left}%;width:${width}%;background:${color}"></div>
+    <div class="axis-center"></div>
+  </div>`;
+    }
+
+    function renderDetailPanel(id) {
+      const d = drones[id];
+      if (!d) {
+        document.getElementById('rPanel').innerHTML = `
+      <div style="text-align:center;padding:40px 20px;font-family:var(--mono)">
+        <div style="font-size:24px;margin-bottom:12px">📡</div>
+        <div style="color:var(--accent);font-size:11px;font-weight:600;margin-bottom:8px">UAV-${String(id).padStart(2, '0')}</div>
+        <div style="color:var(--muted);font-size:10px;line-height:1.6">Telemetri bekleniyor...<br><span style="font-size:9px">Bridge'den veri henüz gelmedi</span></div>
+        <div style="margin-top:16px;display:flex;gap:6px;justify-content:center">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1s .33s infinite"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1s .66s infinite"></div>
+        </div>
+      </div>`;
+        return;
+      }
+      const hist = tlogHistory[id] || [];
+      const alts = hist.map(h => h.alt);
+      const spds = hist.map(h => h.spd);
+      const rollC = '#38bdf8', pitchC = '#a78bfa', yawC = '#2dd4bf', thrC = '#34d399';
+
+      const hz = (() => {
+        if (hist.length < 2) return '—';
+        const dt = (hist[hist.length - 1].t - hist[0].t) / 1000;
+        return dt > 0 ? (hist.length / dt).toFixed(1) + ' Hz' : '—';
+      })();
+
+      document.getElementById('rPanel').innerHTML = `
+    <div class="sec">
+      <div class="sec-title">UAV-${String(id).padStart(2, '0')} — 4-Axis</div>
+      <div class="axes-grid">
+        <div class="axis-box">
+          <div class="axis-lbl">ROLL</div>
+          <div class="axis-val">${d.roll.toFixed(1)}<span class="u">°</span></div>
+          ${axisBarHTML(d.roll, -45, 45, rollC)}
+        </div>
+        <div class="axis-box">
+          <div class="axis-lbl">PITCH</div>
+          <div class="axis-val">${d.pitch.toFixed(1)}<span class="u">°</span></div>
+          ${axisBarHTML(d.pitch, -45, 45, pitchC)}
+        </div>
+        <div class="axis-box">
+          <div class="axis-lbl">YAW</div>
+          <div class="axis-val">${d.yaw.toFixed(0)}<span class="u">°</span></div>
+          ${axisBarHTML(d.yaw, 0, 360, yawC)}
+        </div>
+        <div class="thr-box">
+          <div class="thr-bar-wrap">
+            <div class="thr-fill" style="height:${d.throttle}%;background:${thrC}"></div>
+          </div>
+          <div class="thr-info">
+            <div class="axis-lbl">THROTTLE</div>
+            <div class="axis-val">${d.throttle.toFixed(0)}<span class="u">%</span></div>
+            <div style="font-size:8px;color:var(--muted);font-family:var(--mono);margin-top:4px">HDG ${d.heading.toFixed(0)}°</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">Altitude & Speed</div>
+      <div class="sparkline-wrap">
+        <div class="spark-head">
+          <span class="spark-lbl">ALTITUDE</span>
+          <span class="spark-val">${d.alt.toFixed(1)}<span class="u"> m</span></span>
+        </div>
+        ${sparklineSVG(alts, '#38bdf8', 280, 36)}
+      </div>
+      <div class="sparkline-wrap">
+        <div class="spark-head">
+          <span class="spark-lbl">SPEED</span>
+          <span class="spark-val">${d.speed.toFixed(1)}<span class="u"> m/s</span></span>
+        </div>
+        ${sparklineSVG(spds, '#2dd4bf', 280, 36)}
+      </div>
+    </div>
+    <div class="sec">
+      <div class="tlog">
+        <div class="tlog-head">
+          <span class="tlog-title">Last 5 Messages</span>
+          <span class="hz-badge">${hz}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr 1fr;gap:4px;padding:5px 10px;font-size:8px;color:var(--muted);font-family:var(--mono);border-bottom:1px solid var(--border)">
+          <span>TIME</span><span style="text-align:right">ALT(m)</span><span style="text-align:right">SPD(m/s)</span><span style="text-align:right">ROLL°</span><span style="text-align:right">BAT%</span>
+        </div>
+        <div class="tlog-entries">
+          ${[...hist].reverse().map(h => `
+            <div class="tentry">
+              <span class="te-time">${new Date(h.t).toISOString().slice(14, 22)}</span>
+              <span class="te-val">${h.alt.toFixed(1)}</span>
+              <span class="te-val">${h.spd.toFixed(1)}</span>
+              <span class="te-val">${h.roll.toFixed(1)}</span>
+              <span class="te-val">${h.bat.toFixed(0)}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+    }
+
+    function renderAllPanel() {
+      const list = Object.values(drones);
+      if (!list.length) {
+        document.getElementById('rPanel').innerHTML = '<div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:30px 0">No drones connected</div>';
+        return;
+      }
+      document.getElementById('rPanel').innerHTML = `
+    <div class="sec">
+      <div class="sec-title">All Drones Overview</div>
+      <div class="all-grid">
+        ${list.map(d => `
+          <div class="mini-drone${selId === d.id ? ' sel' : ''}" onclick="selectDrone(${d.id});switchTab('detail')">
+            <div class="mini-id">UAV-${String(d.id).padStart(2, '0')}</div>
+            <div class="mini-stat">ALT ${d.alt.toFixed(0)}m</div>
+            <div class="mini-stat">SPD ${d.speed.toFixed(1)}m/s</div>
+            <div class="mini-stat" style="color:${d.battery < 20 ? 'var(--crit)' : d.battery < 40 ? 'var(--warn)' : 'var(--ok)'}">BAT ${d.battery.toFixed(0)}%</div>
+            <div class="mini-stat">R:${d.roll.toFixed(0)}° P:${d.pitch.toFixed(0)}°</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">Telemetry Stream — All</div>
+      ${list.map(d => {
+        const hist = tlogHistory[d.id] || [];
+        const last = hist[hist.length - 1];
+        if (!last) return '';
+        return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;margin-bottom:5px;font-family:var(--mono);font-size:9px">
+          <div style="color:var(--accent);font-weight:600;margin-bottom:4px">UAV-${String(d.id).padStart(2, '0')}</div>
+          <div style="display:flex;gap:12px;color:var(--text2)">
+            <span>ALT <strong style="color:var(--text)">${d.alt.toFixed(1)}</strong>m</span>
+            <span>SPD <strong style="color:var(--text)">${d.speed.toFixed(1)}</strong>m/s</span>
+            <span>R <strong style="color:var(--text)">${d.roll.toFixed(1)}</strong>°</span>
+            <span>P <strong style="color:var(--text)">${d.pitch.toFixed(1)}</strong>°</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+    }
+
+    function renderGpsPanel() {
+      const list = Object.values(drones);
+      if (!list.length) {
+        document.getElementById('rPanel').innerHTML = '<div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:30px 0">No drones connected</div>';
+        return;
+      }
+      document.getElementById('rPanel').innerHTML = `
+    <div class="sec">
+      <div class="sec-title">Live GPS Coordinates</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${list.map(d => `
+          <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent2);border-radius:6px;padding:10px 14px;display:flex;align-items:center;gap:14px;font-family:var(--mono);cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='var(--bg2)'" onclick="selectDrone(${d.id})">
+            <div style="color:var(--accent);font-size:12px;font-weight:600;width:55px;text-align:center;pointer-events:none;">
+              UAV-${String(d.id).padStart(2, '0')}
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:5px;border-left:1px solid var(--border);padding-left:14px;pointer-events:none;">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                <span style="font-size:9px;color:var(--muted);letter-spacing:1px;">LAT</span>
+                <span style="font-size:13px;color:var(--text);letter-spacing:0.5px;">${d.lat.toFixed(6)}°</span>
+              </div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                <span style="font-size:9px;color:var(--muted);letter-spacing:1px;">LON</span>
+                <span style="font-size:13px;color:var(--text);letter-spacing:0.5px;">${d.lon.toFixed(6)}°</span>
+              </div>
+            </div>
+            <div style="text-align:right;border-left:1px solid var(--border);padding-left:14px;min-width:60px;pointer-events:none;">
+              <div style="font-size:16px;color:var(--accent2);font-weight:600;">${d.alt.toFixed(1)}<span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:2px;">m</span></div>
+              <div style="font-size:8px;color:var(--text2);margin-top:2px;letter-spacing:0.5px;">ALTITUDE</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+    }
+
+    function updateStats() {
+      const list = Object.values(drones);
+      document.getElementById('sA').textContent = list.length;
+      if (!list.length) return;
+      const avg = fn => (list.reduce((s, d) => s + fn(d), 0) / list.length).toFixed(1);
+      document.getElementById('sAlt').textContent = avg(d => d.alt) + ' m';
+      document.getElementById('sSpd').textContent = avg(d => d.speed) + ' m/s';
+      document.getElementById('sBat').textContent = avg(d => d.battery) + ' %';
+    }
+
+    setInterval(() => {
+      document.getElementById('clock').textContent = new Date().toISOString().slice(11, 19);
+    }, 500);
+
+    const SIM_N = 7;
+    const PATS = [
+      (t, i) => ({ lat: HOME.lat + .0022 * Math.sin(t * .55 + i), lon: HOME.lon + .0032 * Math.cos(t * .55 + i) }),
+      (t, i) => ({ lat: HOME.lat + .0028 * Math.sin(t * .35 + i * .8), lon: HOME.lon + .0028 * Math.sin(t * .7 + i * .8) }),
+      (t, i) => { const r = .001 + .0018 * (((t * .08 + i) % (2 * Math.PI)) / (2 * Math.PI)); return { lat: HOME.lat + r * Math.sin(t * .48 + i), lon: HOME.lon + r * Math.cos(t * .48 + i) } },
+      (t, i) => { const a = .003, ang = t * .42 + i, den = 1 + Math.sin(ang) ** 2; return { lat: HOME.lat + a * Math.cos(ang) / den, lon: HOME.lon + a * Math.cos(ang) * Math.sin(ang) / den } },
+      (t, i) => ({ lat: HOME.lat + .002 * Math.sin(t * .28 + i * 2.1) * Math.cos(t * .62), lon: HOME.lon + .0025 * Math.cos(t * .32 + i * 1.6) * Math.sin(t * .5) }),
+      (t, i) => ({ lat: HOME.lat + .0015 * Math.sin(t * .9 + i) + .001 * Math.cos(t * 1.3 + i), lon: HOME.lon + .0025 * Math.cos(t * .7 + i) + .0008 * Math.sin(t * 1.1 + i) }),
+      (t, i) => ({ lat: HOME.lat + .0032 * Math.sin(t * .22 + i + 1.2) * Math.sin(t * .44 + i), lon: HOME.lon + .002 * Math.cos(t * .33 + i + .8) }),
+    ];
+
+    function startSim() {
+      clearDrones();
+      simRunning = true;
+      document.getElementById('simBtn').classList.add('on');
+      document.getElementById('simBtn').textContent = '⚙ SIM ACTIVE';
+      document.getElementById('dot').classList.add('live');
+      document.getElementById('statusLbl').textContent = 'SIM ACTIVE';
+      document.getElementById('modeLbl').textContent = 'SIMULATION';
+      for (let i = 1; i <= SIM_N; i++) {
+        const p = PATS[(i - 1) % PATS.length](0, i);
+        upsertDrone(i, {
+          lat: p.lat, lon: p.lon, alt: 30 + i * 9, speed: 2 + i * 1.2, battery: 85 + Math.random() * 15,
+          heading: 0, roll: 0, pitch: 0, yaw: i * 50, throttle: 40 + i * 5
+        });
+      }
+      simInterval = setInterval(() => {
+        simTime += .1;
+        for (let i = 1; i <= SIM_N; i++) {
+          const d = drones[i]; if (!d) continue;
+          const p = PATS[(i - 1) % PATS.length](simTime, i);
+          const dx = p.lon - d.lon, dy = p.lat - d.lat;
+          const hdg = Math.atan2(dx, dy) * 180 / Math.PI;
+          const spd = Math.sqrt(dx * dx + dy * dy) * 111000 / .1;
+          const roll = 18 * Math.sin(simTime * .8 + i);
+          const pitch = 12 * Math.cos(simTime * .6 + i);
+          const yaw = (d.yaw + 2) % 360;
+          const thr = Math.min(100, Math.max(0, 50 + 25 * Math.sin(simTime * .3 + i)));
+          upsertDrone(i, {
+            lat: p.lat, lon: p.lon,
+            alt: 25 + i * 8 + 14 * Math.sin(simTime * .25 + i),
+            speed: Math.min(22, Math.abs(spd)),
+            battery: Math.max(0, d.battery - .0025),
+            heading: hdg, roll, pitch, yaw, throttle: thr
+          });
+        }
+        updateTrafficGrid(); updateStats();
+      }, 100);
+      if (!selId) { selId = 1; selectDrone(1); }
+    }
+
+    function stopSim() {
+      clearInterval(simInterval); simRunning = false;
+      document.getElementById('simBtn').classList.remove('on');
+      document.getElementById('simBtn').textContent = '⚙ SIM MODE';
+      document.getElementById('dot').classList.remove('live');
+      document.getElementById('statusLbl').textContent = 'DISCONNECTED';
+      document.getElementById('modeLbl').textContent = 'STANDBY';
+    }
+    function toggleSim() { if (simRunning) stopSim(); else { if (ws) ws.close(); startSim(); } }
+
+    function connectWS() {
+      if (simRunning) stopSim();
+      clearDrones();
+      const url = document.getElementById('wsUrl').value.trim();
+      if (!url) return;
+      if (ws) { ws.close(); ws = null; }
+      try {
+        ws = new WebSocket(url);
+        ws.onopen = () => {
+          document.getElementById('dot').classList.add('live');
+          document.getElementById('statusLbl').textContent = 'LIVE';
+          document.getElementById('modeLbl').textContent = 'LIVE DATA';
+        };
+        ws.onclose = () => {
+          document.getElementById('dot').classList.remove('live');
+          document.getElementById('statusLbl').textContent = 'DISCONNECTED';
+          document.getElementById('modeLbl').textContent = 'STANDBY';
+        };
+        ws.onerror = () => { document.getElementById('statusLbl').textContent = 'ERROR'; };
+        ws.onmessage = e => { try { parseMav(JSON.parse(e.data)); } catch { } };
+      } catch (e) { document.getElementById('statusLbl').textContent = 'CONN FAILED'; }
+    }
+
+    function parseMav(msg) {
+      const sid = msg?.header?.system_id;
+      if (!sid || sid === 255) return;
+      const uavId = sid - 1; // Gazebo iris_1 -> PX4 sysid=2 -> UI UAV-01
+      if (uavId < 1 || uavId > 20) return; // Hatalı ID'leri filtrele
+
+      const type = msg?.message?.type, m = msg?.message;
+      if (type === 'GLOBAL_POSITION_INT') {
+        const vx = m.vx / 100, vy = m.vy / 100;
+        upsertDrone(uavId, {
+          lat: m.lat / 1e7, lon: m.lon / 1e7, alt: m.relative_alt / 1000,
+          speed: Math.sqrt(vx * vx + vy * vy), heading: m.hdg ? m.hdg / 100 : 0
+        });
+      } else if (type === 'SYS_STATUS') {
+        const br = m.battery_remaining;
+        if (br >= 0) upsertDrone(uavId, { battery: br });
+        else if (m.voltage_battery > 0)
+          upsertDrone(uavId, { battery: Math.max(0, Math.min(100, ((m.voltage_battery / 1000 - 3.3) / .9) * 100)) });
+      } else if (type === 'VFR_HUD') {
+        // Eğer daha önce ATTITUDE_TARGET'tan thrust geldiyse onu ezme
+        const t = m.throttle;
+        upsertDrone(uavId, { speed: m.groundspeed, alt: m.alt });
+        if (drones[uavId].throttle === 0 || drones[uavId].throttle === undefined || t > 0) {
+          upsertDrone(uavId, { throttle: t });
+        }
+      } else if (type === 'ATTITUDE_TARGET') {
+        if (m.thrust !== undefined) {
+          upsertDrone(uavId, { throttle: m.thrust * 100 });
+        }
+      } else if (type === 'ATTITUDE') {
+        const deg = r => r * 180 / Math.PI;
+        upsertDrone(uavId, { roll: deg(m.roll), pitch: deg(m.pitch), yaw: (deg(m.yaw) + 360) % 360, heading: (deg(m.yaw) + 360) % 360 });
+      }
+      updateTrafficGrid(); updateStats();
+    }
+
+    // Tüm arayüz güncellemelerini tek bir yerde (saniyede 10 kere) yap
+    setInterval(() => {
+      Object.keys(drones).forEach(id => renderCard(id));
+      if (selId && activeTab === 'detail' && drones[selId]) renderDetailPanel(selId);
+      if (activeTab === 'all') renderAllPanel();
+      if (activeTab === 'gps') renderGpsPanel();
+    }, 100);
+
+    // Sayfa açılınca WebSocket bağlantısını otomatik dene,
+    // bridge çalışıyorsa LIVE'a geçer; yoksa SIM başlar.
+    function autoConnect() {
+      const url = document.getElementById('wsUrl').value.trim();
+      const ws_test = new WebSocket(url);
+      ws_test.onopen = () => {
+        ws_test.close();
+        connectWS();
+        document.getElementById('modeLbl').textContent = 'LIVE DATA';
+      };
+      ws_test.onerror = () => {
+        startSim();
+      };
+    }
+    setTimeout(autoConnect, 600);
+  </script>
+</body>
+
+</html>

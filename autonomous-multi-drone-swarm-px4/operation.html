@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drone Operations Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#060a0e; --panel:#0b1118; --card:#0f1820; --border:#182840; --border-hi:#1d3d60;
+  --accent:#00e5ff; --adim:#006880;
+  --green:#00ff88; --yellow:#ffcc00; --red:#ff3355; --purple:#bb55ff; --orange:#ff8833;
+  --text:#bdd8ef; --dim:#3a6080;
+  --fd:'Orbitron',monospace; --fm:'Share Tech Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--fm);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── HEADER ── */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border-hi);height:50px;flex-shrink:0;gap:10px;
+  background-image:repeating-linear-gradient(90deg,transparent,transparent 120px,rgba(0,100,120,.04) 120px,rgba(0,100,120,.04) 121px)}
+.logo{font-family:var(--fd);font-size:12px;font-weight:900;letter-spacing:5px;color:var(--accent);
+  text-shadow:0 0 18px rgba(0,229,255,.5),0 0 40px rgba(0,229,255,.15);white-space:nowrap}
+.hbar{display:flex;align-items:center;gap:7px}
+.inp{background:rgba(0,0,0,.5);border:1px solid var(--border);color:var(--text);font-family:var(--fm);font-size:11px;padding:4px 8px;width:210px;outline:none;transition:border-color .2s}
+.inp:focus{border-color:var(--accent)}
+.btn{font-family:var(--fd);font-size:8px;font-weight:700;letter-spacing:2px;padding:4px 10px;border:1px solid;background:transparent;cursor:pointer;text-transform:uppercase;transition:all .2s;white-space:nowrap}
+.btn-a{color:var(--accent);border-color:var(--accent)}.btn-a:hover{background:var(--accent);color:var(--bg)}
+.btn-g{color:var(--green);border-color:var(--green)}.btn-g:hover,.btn-g.on{background:var(--green);color:var(--bg)}
+.btn-r{color:var(--red);border-color:var(--red)}.btn-r:hover{background:var(--red);color:var(--bg)}
+.btn-y{color:var(--yellow);border-color:var(--yellow)}.btn-y:hover{background:var(--yellow);color:var(--bg)}
+.btn-p{color:var(--purple);border-color:var(--purple)}.btn-p:hover{background:var(--purple);color:var(--bg)}
+.btn-o{color:var(--orange);border-color:var(--orange)}.btn-o:hover{background:var(--orange);color:var(--bg)}
+.btn-sm{font-size:7px;padding:3px 8px;letter-spacing:1px}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 7px var(--red);flex-shrink:0}
+.sdot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.slbl{font-size:10px;color:var(--dim)}
+
+/* ── LAYOUT ── */
+.main{display:flex;flex:1;overflow:hidden}
+.lpanel,.rpanel{width:258px;background:var(--panel);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.lpanel{border-right:1px solid var(--border)}
+.rpanel{border-left:1px solid var(--border)}
+.ph{font-family:var(--fd);font-size:9px;font-weight:700;letter-spacing:3px;color:var(--adim);padding:9px 12px 8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.ph-cnt{color:var(--accent);font-size:14px}
+.scroll{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:5px}
+.scroll::-webkit-scrollbar{width:3px}.scroll::-webkit-scrollbar-thumb{background:var(--border-hi)}
+
+/* ── DRONE CARDS ── */
+.dcard{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);padding:8px 9px;cursor:pointer;transition:border-color .2s}
+.dcard.warning{border-left-color:var(--yellow)}.dcard.critical{border-left-color:var(--red);animation:cardpulse 1s infinite}
+@keyframes cardpulse{0%,100%{border-left-color:var(--red)}50%{border-left-color:#600}}
+.dcard:hover,.dcard.sel{border-color:var(--accent);background:#0d1e2e}
+.dcard-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.did{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:2px}
+.dst{font-size:7px;padding:2px 5px;border:1px solid;letter-spacing:1px}
+.dst-ok{color:var(--green);border-color:var(--green)}.dst-w{color:var(--yellow);border-color:var(--yellow)}.dst-c{color:var(--red);border-color:var(--red)}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.met{background:var(--bg);padding:4px 6px}
+.ml{font-size:7px;color:var(--dim);letter-spacing:.8px;text-transform:uppercase;margin-bottom:1px}
+.mv{font-size:12px;color:var(--text);line-height:1.1}
+.mv em{font-style:normal;font-size:8px;color:var(--dim)}
+.bbar-wrap{margin-top:6px}
+.bbar-lbl{display:flex;justify-content:space-between;font-size:7px;color:var(--dim);margin-bottom:2px}
+.bbar{height:2px;background:var(--bg)}.bfill{height:100%;transition:width .6s,background .6s}
+.dop-tag{font-size:8px;color:var(--dim);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── OP CARDS (right panel) ── */
+.ocard{background:var(--card);border:1px solid var(--border);padding:9px;cursor:pointer;transition:all .2s;position:relative;border-left-width:3px;border-left-style:solid}
+.ocard:hover,.ocard.sel{border-color:var(--accent)!important;background:#0d1e2e}
+.ocard-h{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.oname{font-family:var(--fd);font-size:10px;font-weight:700;letter-spacing:1.5px}
+.obadge{font-size:7px;padding:2px 5px;border:1px solid;letter-spacing:1px;text-transform:uppercase;white-space:nowrap}
+.ometa{font-size:9px;color:var(--dim);margin-bottom:3px;line-height:1.4}
+.ometa b{color:var(--text)}
+.oprogress{margin-top:5px}
+
+/* ── CREATE FORM ── */
+.cform{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px}
+.cform::-webkit-scrollbar{width:3px}.cform::-webkit-scrollbar-thumb{background:var(--border-hi)}
+.flbl{font-size:8px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.finp{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--fm);font-size:12px;padding:5px 8px;outline:none}
+.finp:focus{border-color:var(--accent)}
+.fsel{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--fm);font-size:12px;padding:5px 8px;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none}
+.fsel option{background:var(--card)}
+.fbox{background:var(--bg);border:1px solid var(--border);padding:8px}
+.fbox-title{font-family:var(--fd);font-size:8px;letter-spacing:2px;color:var(--adim);margin-bottom:7px}
+.path-opt{border:1px solid var(--border);padding:8px;cursor:pointer;transition:border-color .2s;margin-bottom:5px}
+.path-opt:hover,.path-opt.sel{border-color:var(--accent);background:#0d1e2e}
+.path-label{font-family:var(--fd);font-size:10px;font-weight:700;letter-spacing:2px}
+.path-meta{font-size:9px;color:var(--dim);margin-top:3px}
+.risk{font-size:7px;padding:2px 5px;border:1px solid;letter-spacing:1px;float:right;margin-top:-2px}
+.risk-lo{color:var(--green);border-color:var(--green)}.risk-md{color:var(--yellow);border-color:var(--yellow)}.risk-hi{color:var(--red);border-color:var(--red)}
+.wp-info{background:var(--bg);border:1px solid var(--border);padding:8px;text-align:center}
+.wp-big{font-family:var(--fd);font-size:22px;font-weight:700;color:var(--accent);margin:4px 0}
+.wp-sub{font-size:9px;color:var(--dim)}
+.wp-list-wrap{flex:1;overflow-y:auto;min-height:0;max-height:160px}
+.wp-list-wrap::-webkit-scrollbar{width:3px}.wp-list-wrap::-webkit-scrollbar-thumb{background:var(--border-hi)}
+.wpi{font-size:9px;color:var(--dim);padding:3px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.wpi b{color:var(--text)}
+
+/* ── OP DETAIL ── */
+.od-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.od-body::-webkit-scrollbar{width:3px}.od-body::-webkit-scrollbar-thumb{background:var(--border-hi)}
+.od-title{font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:2px;margin-bottom:2px}
+.od-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.od-sep{font-size:8px;color:var(--adim);letter-spacing:2px;text-transform:uppercase;padding:4px 0;border-bottom:1px solid var(--border);margin-top:2px}
+.drone-sel-row{display:flex;gap:5px;align-items:center}
+
+/* ── MAP ── */
+.mwrap{flex:1;position:relative;overflow:hidden}
+#map{width:100%;height:100%}
+.mwrap::after{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,229,255,.008) 3px,rgba(0,229,255,.008) 4px);
+  pointer-events:none;z-index:901}
+
+/* MAP OVERLAYS */
+.ov{position:absolute;z-index:1000;font-family:var(--fm);pointer-events:none}
+.ov.click{pointer-events:all}
+.ovbox{background:rgba(5,9,13,.93);border:1px solid var(--border);backdrop-filter:blur(4px)}
+.ot{font-family:var(--fd);font-size:8px;letter-spacing:2px;color:var(--adim);margin-bottom:7px}
+.sr{font-size:10px;color:var(--dim);margin-bottom:3px}
+.sr strong{color:var(--text);margin-left:3px}
+.leg-li{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:9px;color:var(--text)}
+.leg-clr{width:20px;height:9px;border:1px solid rgba(255,255,255,.1)}
+
+/* mode indicator banner */
+.mode-banner{position:absolute;top:0;left:0;right:0;z-index:1002;
+  font-family:var(--fd);font-size:9px;font-weight:700;letter-spacing:3px;text-align:center;
+  padding:6px 10px;color:var(--accent);background:rgba(0,229,255,.08);
+  border-bottom:1px solid var(--accent);display:none;animation:slidein .3s ease}
+.mode-banner.show{display:block}
+@keyframes slidein{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+.mode-banner span{color:var(--text);margin-left:10px;font-size:8px;letter-spacing:1px}
+
+/* ── FOOTER ── */
+footer{height:26px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:22px;font-size:9px;color:var(--dim);flex-shrink:0}
+footer b{color:var(--text);margin-left:3px}
+
+/* ── LEAFLET OVERRIDES ── */
+.leaflet-container{background:#030710;font-family:var(--fm)}
+.leaflet-tile{filter:brightness(.55) saturate(.4) hue-rotate(180deg) invert(1)}
+.leaflet-control-zoom a{background:var(--card)!important;color:var(--accent)!important;border-color:var(--border)!important;font-size:14px!important}
+.leaflet-control-attribution{background:rgba(3,7,16,.8)!important;color:var(--dim)!important;font-size:8px!important}
+.dtip{background:var(--panel)!important;border:1px solid var(--accent)!important;color:var(--text)!important;font-family:var(--fm)!important;font-size:10px!important;padding:5px 8px!important;white-space:nowrap!important;box-shadow:0 0 12px rgba(0,229,255,.2)!important}
+.dtip::before{display:none!important}
+#map.crosshair{cursor:crosshair!important}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">◈ DRONE OPERATIONS CENTER</div>
+  <div class="hbar">
+    <div class="sdot" id="sdot"></div>
+    <span class="slbl" id="slbl">DISCONNECTED</span>
+    <input class="inp" id="wsUrl" value="ws://localhost:4000/v1/mavlink" placeholder="mavlink2rest WebSocket">
+    <button class="btn btn-a" onclick="connectWS()">▶ CONNECT</button>
+    <button class="btn btn-g" id="simBtn" onclick="toggleSim()">⚙ SIM MODE</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ══ LEFT: FLEET TELEMETRY ══ -->
+  <div class="lpanel">
+    <div class="ph">FLEET TELEMETRY <span class="ph-cnt" id="dcnt">0</span></div>
+    <div class="scroll" id="dlist"></div>
+  </div>
+
+  <!-- ══ CENTER: MAP ══ -->
+  <div class="mwrap">
+    <div id="map"></div>
+    <div class="mode-banner" id="modeBanner">◎ MODE ACTIVE <span id="modeDesc"></span></div>
+
+    <!-- Fleet stats -->
+    <div class="ov ovbox" style="top:14px;left:10px;padding:9px 13px">
+      <div class="ot">FLEET STATUS</div>
+      <div class="sr">ACTIVE <strong id="sA">0</strong></div>
+      <div class="sr">AVG ALT <strong id="sAlt">—</strong></div>
+      <div class="sr">AVG SPD <strong id="sSpd">—</strong></div>
+      <div class="sr">OPS <strong id="sOps">0</strong></div>
+    </div>
+
+    <!-- Traffic legend -->
+    <div class="ov ovbox click" style="bottom:32px;right:10px;padding:9px 13px">
+      <div class="ot">TRAFFIC DENSITY</div>
+      <div class="leg-li"><div class="leg-clr" style="background:rgba(0,255,136,.28)"></div>LOW — 1 drone</div>
+      <div class="leg-li"><div class="leg-clr" style="background:rgba(255,204,0,.38)"></div>MED — 2–3 drones</div>
+      <div class="leg-li"><div class="leg-clr" style="background:rgba(255,51,85,.50)"></div>HIGH — 4+ drones</div>
+      <div class="sr" style="margin-top:6px;border-top:1px solid var(--border);padding-top:5px">ZONES <strong id="sZones">—</strong></div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT: OPERATIONS ══ -->
+  <div class="rpanel">
+    <div class="ph" id="rph">
+      OPERATIONS
+      <button class="btn btn-g btn-sm" id="newOpBtn" onclick="startCreateOp()">+ NEW OP</button>
+    </div>
+
+    <!-- LIST -->
+    <div id="rpList" class="scroll"></div>
+
+    <!-- CREATE FORM -->
+    <div id="rpCreate" style="display:none;flex-direction:column;overflow:hidden;flex:1">
+      <div class="cform" id="createForm">
+        <div>
+          <div class="flbl">OPERATION NAME</div>
+          <input class="finp" id="opName" placeholder="e.g. PATROL-DELTA" maxlength="20">
+        </div>
+        <div>
+          <div class="flbl">MISSION TYPE</div>
+          <select class="fsel" id="opType">
+            <option value="patrol">⬡ PATROL</option>
+            <option value="survey">⊞ SURVEY</option>
+            <option value="delivery">⬆ DELIVERY</option>
+            <option value="search">◎ SEARCH &amp; RESCUE</option>
+          </select>
+        </div>
+        <div>
+          <div class="flbl">TARGET ALTITUDE (m)</div>
+          <input class="finp" id="opAlt" type="number" value="50" min="10" max="500">
+        </div>
+        <div class="fbox">
+          <div class="fbox-title">WAYPOINT METHOD</div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <button class="btn btn-a" style="width:100%" onclick="startManualWP()">✦ PLACE WAYPOINTS ON MAP</button>
+            <button class="btn btn-y" style="width:100%" onclick="startSuggestMode()">◈ AUTO SUGGEST OPTIMAL PATH</button>
+          </div>
+        </div>
+        <button class="btn btn-r btn-sm" style="width:100%" onclick="cancelCreate()">✗ CANCEL</button>
+      </div>
+    </div>
+
+    <!-- WAYPOINT PLACEMENT -->
+    <div id="rpWP" style="display:none;flex-direction:column;flex:1;overflow:hidden;padding:8px;gap:6px">
+      <div class="wp-info">
+        <div class="wp-sub">WAYPOINTS PLACED</div>
+        <div class="wp-big" id="wpCnt">0</div>
+        <div class="wp-sub">Click map to add · right-click to finish</div>
+      </div>
+      <div class="flbl">PLACED WAYPOINTS</div>
+      <div class="wp-list-wrap scroll" id="wpItems" style="flex:none"></div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:5px">
+        <button class="btn btn-a btn-sm" style="width:100%" onclick="undoWP()">↩ UNDO LAST</button>
+        <button class="btn btn-g" style="width:100%" id="finishWPBtn" onclick="finishWP()" disabled>✓ FINISH ROUTE</button>
+        <button class="btn btn-r btn-sm" style="width:100%" onclick="cancelCreate()">✗ CANCEL</button>
+      </div>
+    </div>
+
+    <!-- SUGGEST PATH -->
+    <div id="rpSuggest" style="display:none;flex-direction:column;flex:1;overflow:hidden;padding:8px;gap:6px">
+      <div class="wp-info" id="suggestInfo">
+        <div class="wp-sub" id="suggestPrompt">SET START POINT ON MAP</div>
+        <div class="wp-big" id="suggestStep">1 / 2</div>
+        <div class="wp-sub" id="suggestSub">Click to place START</div>
+      </div>
+      <div id="pathOptionsList" style="display:flex;flex-direction:column;gap:5px;overflow-y:auto;flex:1"></div>
+      <div id="confirmPathBtn" style="display:none">
+        <button class="btn btn-g" style="width:100%" onclick="confirmPath()">✓ USE SELECTED PATH</button>
+      </div>
+      <button class="btn btn-r btn-sm" style="width:100%;margin-top:auto" onclick="cancelCreate()">✗ CANCEL</button>
+    </div>
+
+    <!-- OP DETAIL -->
+    <div id="rpDetail" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+      <div class="od-body" id="odBody"></div>
+      <div style="padding:8px;display:flex;gap:5px;border-top:1px solid var(--border);flex-shrink:0">
+        <button class="btn btn-a btn-sm" style="flex:1" onclick="showOpList()">← BACK</button>
+        <button class="btn btn-r btn-sm" id="delOpBtn" style="flex:1">✗ DELETE</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>UTC <b id="clock">--:--:--</b></span>
+  <span>MODE <b id="modeLbl">STANDBY</b></span>
+  <span>GRID <b>20×15</b></span>
+  <span>CORR <b id="fCorr">0</b></span>
+  <span style="margin-left:auto;font-size:8px">PX4 SITL · mavlink2rest · <span style="color:var(--accent)">v2</span></span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════
+const HOME = {lat:47.397742, lon:8.545594};
+const GCOLS=20, GROWS=15;
+const TYPE_COLOR  = {patrol:'#00e5ff', survey:'#bb55ff', delivery:'#ff8833', search:'#ffcc00'};
+const TYPE_ICON   = {patrol:'⬡', survey:'⊞', delivery:'⬆', search:'◎'};
+
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let drones={}, operations={}, trafficGrid={};
+let opSeq=0;
+let dMarkers={}, dTrails={}, gridLayers=[];
+let corrLayers={}; // opId → {fill,center,arrows,wps}
+let candLayers={};  // pathId → {fill,center}
+let wpPrevLine=null, wpPrevDots=[], wpPrevCursor=null;
+let sMarker=null, eMarker=null;
+
+let mapMode='NORMAL'; // NORMAL|PLACE_WP|SUG_START|SUG_END|SUG_CHOOSE
+let pendOp=null;
+let sugStart=null;
+let candPaths=[];
+let selCand=null;
+let selOpId=null;
+
+let simOn=false, simTmr=null, simT=0;
+let ws=null;
+
+// ══════════════════════════════════════════════════════
+//  MAP
+// ══════════════════════════════════════════════════════
+const map=L.map('map',{center:[HOME.lat,HOME.lon],zoom:16,zoomControl:false});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);
+L.control.zoom({position:'bottomleft'}).addTo(map);
+map.on('moveend zoomend', updateGrid);
+map.on('click', onMapClick);
+map.on('mousemove', onMapMove);
+map.on('contextmenu', e=>{ e.originalEvent.preventDefault(); if(mapMode==='PLACE_WP') finishWP(); });
+
+// ══════════════════════════════════════════════════════
+//  DRONE ICON
+// ══════════════════════════════════════════════════════
+function droneIcon(h,st){
+  const c=st==='critical'?'#ff3355':st==='warning'?'#ffcc00':'#00ff88';
+  const s=`<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"
+    style="transform:rotate(${h}deg);filter:drop-shadow(0 0 4px ${c}88)">
+    <circle cx="14" cy="14" r="12" fill="rgba(5,9,13,.75)" stroke="${c}" stroke-width="1.5"/>
+    <polygon points="14,3 18.5,20 14,17 9.5,20" fill="${c}"/>
+    <circle cx="14" cy="14" r="2" fill="${c}"/>
+    <line x1="5" y1="5" x2="9.5" y2="9.5" stroke="${c}" stroke-width="1.5"/>
+    <line x1="23" y1="5" x2="18.5" y2="9.5" stroke="${c}" stroke-width="1.5"/>
+    <line x1="5" y1="23" x2="9.5" y2="18.5" stroke="${c}" stroke-width="1.5"/>
+    <line x1="23" y1="23" x2="18.5" y2="18.5" stroke="${c}" stroke-width="1.5"/>
+    <circle cx="9.5" cy="9.5" r="1.8" fill="none" stroke="${c}" stroke-width=".9"/>
+    <circle cx="18.5" cy="9.5" r="1.8" fill="none" stroke="${c}" stroke-width=".9"/>
+    <circle cx="9.5" cy="18.5" r="1.8" fill="none" stroke="${c}" stroke-width=".9"/>
+    <circle cx="18.5" cy="18.5" r="1.8" fill="none" stroke="${c}" stroke-width=".9"/>
+  </svg>`;
+  return L.divIcon({html:s,className:'',iconSize:[28,28],iconAnchor:[14,14]});
+}
+
+// ══════════════════════════════════════════════════════
+//  DRONE MANAGEMENT
+// ══════════════════════════════════════════════════════
+function upsertDrone(id, data){
+  if(!drones[id]) drones[id]={id,lat:HOME.lat,lon:HOME.lon,alt:0,speed:0,battery:100,heading:0,status:'ok',trail:[],wpIdx:0,assignedOp:null};
+  Object.assign(drones[id], data);
+  const d=drones[id];
+  d.status=d.battery<20?'critical':d.battery<40?'warning':'ok';
+  const ll=[d.lat,d.lon];
+  if(!dMarkers[id]){
+    dMarkers[id]=L.marker(ll,{icon:droneIcon(d.heading,d.status),zIndexOffset:500}).bindTooltip('',{direction:'top',className:'dtip',offset:[0,-14]}).addTo(map).on('click',()=>selectDrone(id));
+    dTrails[id]=L.polyline([],{color:'#00e5ff',weight:1,opacity:.28,dashArray:'4,6'}).addTo(map);
+  }
+  dMarkers[id].setLatLng(ll);
+  dMarkers[id].setIcon(droneIcon(d.heading,d.status));
+  const opName=d.assignedOp&&operations[d.assignedOp]?operations[d.assignedOp].name:'—';
+  dMarkers[id].setTooltipContent(`<b>UAV-${pad2(id)}</b><br>ALT:${d.alt.toFixed(1)}m  SPD:${d.speed.toFixed(1)}m/s<br>BAT:${d.battery.toFixed(0)}%  HDG:${d.heading.toFixed(0)}°<br>OP:${opName}`);
+  d.trail.push([d.lat,d.lon]);
+  if(d.trail.length>120) d.trail.shift();
+  dTrails[id].setLatLngs(d.trail);
+  renderDroneCard(id);
+}
+
+function renderDroneCard(id){
+  const d=drones[id];
+  let el=document.getElementById(`dc-${id}`);
+  if(!el){el=document.createElement('div');el.id=`dc-${id}`;el.className='dcard';el.onclick=()=>selectDrone(id);document.getElementById('dlist').appendChild(el);}
+  const bc=d.battery<20?'var(--red)':d.battery<40?'var(--yellow)':'var(--green)';
+  const stcls=d.status==='critical'?'dst-c':d.status==='warning'?'dst-w':'dst-ok';
+  el.className=`dcard ${d.status}`;
+  const op=d.assignedOp&&operations[d.assignedOp];
+  el.innerHTML=`
+    <div class="dcard-h">
+      <div class="did">UAV-${pad2(id)}</div>
+      <div class="dst ${stcls}">${d.status.toUpperCase()}</div>
+    </div>
+    <div class="mg">
+      <div class="met"><div class="ml">ALTITUDE</div><div class="mv">${d.alt.toFixed(1)}<em> m</em></div></div>
+      <div class="met"><div class="ml">SPEED</div><div class="mv">${d.speed.toFixed(1)}<em> m/s</em></div></div>
+      <div class="met"><div class="ml">HEADING</div><div class="mv">${d.heading.toFixed(0)}<em> °</em></div></div>
+      <div class="met"><div class="ml">BATTERY</div><div class="mv" style="color:${bc}">${d.battery.toFixed(0)}<em> %</em></div></div>
+    </div>
+    <div class="bbar-wrap">
+      <div class="bbar-lbl"><span>CHARGE</span><span style="color:${bc}">${d.battery.toFixed(1)}%</span></div>
+      <div class="bbar"><div class="bfill" style="width:${d.battery}%;background:${bc}"></div></div>
+    </div>
+    <div class="dop-tag">${op?`<span style="color:${op.color}">${TYPE_ICON[op.type]} ${op.name}</span>`:'<span>FREE FLIGHT</span>'}</div>`;
+  document.getElementById('dcnt').textContent=Object.keys(drones).length;
+}
+
+function selectDrone(id){
+  document.querySelectorAll('.dcard').forEach(c=>c.classList.remove('sel'));
+  const c=document.getElementById(`dc-${id}`);
+  if(c)c.classList.add('sel');
+  const d=drones[id];
+  if(d)map.panTo([d.lat,d.lon],{animate:true});
+}
+
+// ══════════════════════════════════════════════════════
+//  TRAFFIC GRID
+// ══════════════════════════════════════════════════════
+function updateGrid(){
+  gridLayers.forEach(l=>map.removeLayer(l));
+  gridLayers=[];
+  trafficGrid={};
+  const b=map.getBounds();
+  const ls=(b.getNorth()-b.getSouth())/GROWS, lns=(b.getEast()-b.getWest())/GCOLS;
+  Object.values(drones).forEach(d=>{
+    const c=Math.floor((d.lon-b.getWest())/lns), r=Math.floor((d.lat-b.getSouth())/ls);
+    if(c>=0&&c<GCOLS&&r>=0&&r<GROWS){const k=`${r},${c}`;trafficGrid[k]=(trafficGrid[k]||0)+1;}
+  });
+  let lo=0,md=0,hi=0;
+  Object.entries(trafficGrid).forEach(([k,cnt])=>{
+    const [r,c]=k.split(',').map(Number);
+    const sw=[b.getSouth()+r*ls,b.getWest()+c*lns], ne=[sw[0]+ls,sw[1]+lns];
+    let col,fo,so;
+    if(cnt>=4){col='#ff3355';fo=.50;so=.38;hi++;}
+    else if(cnt>=2){col='#ffcc00';fo=.38;so=.28;md++;}
+    else{col='#00ff88';fo=.22;so=.20;lo++;}
+    gridLayers.push(L.rectangle([sw,ne],{color:col,weight:.7,fillColor:col,fillOpacity:fo,opacity:so}).addTo(map));
+  });
+  const tot=lo+md+hi;
+  document.getElementById('sZones').textContent=tot?`${lo}L ${md}M ${hi}H`:'—';
+}
+
+// ══════════════════════════════════════════════════════
+//  OPERATIONS
+// ══════════════════════════════════════════════════════
+function newOpId(){return 'OP-'+String(++opSeq).padStart(3,'0');}
+
+function createOp(name,type,alt,waypoints,opts={}){
+  const id=opts.id||newOpId();
+  const color=opts.color||TYPE_COLOR[type]||'#00e5ff';
+  operations[id]={id,name:name.toUpperCase(),type,alt:+alt||50,waypoints,color,status:'planned',assignedDrone:null,created:Date.now(),wpIdx:0};
+  if(opts.drone){
+    assignDrone(id,opts.drone);
+  }
+  drawCorridor(id);
+  renderOpList();
+  updateStats();
+  return id;
+}
+
+function deleteOp(id){
+  const op=operations[id];
+  if(!op)return;
+  if(op.assignedDrone&&drones[op.assignedDrone]){drones[op.assignedDrone].assignedOp=null;renderDroneCard(op.assignedDrone);}
+  clearCorridor(id);
+  delete operations[id];
+  if(selOpId===id)showOpList();
+  renderOpList();
+  updateStats();
+}
+
+function assignDrone(opId,droneId){
+  // Unassign drone from any current op
+  Object.values(operations).forEach(o=>{
+    if(o.assignedDrone===droneId){o.assignedDrone=null;o.status='planned';drawCorridor(o.id);}
+  });
+  const op=operations[opId];
+  if(!op)return;
+  if(droneId){
+    op.assignedDrone=droneId;op.status='active';
+    if(drones[droneId]){drones[droneId].assignedOp=opId;drones[droneId].wpIdx=0;}
+  } else {
+    op.assignedDrone=null;op.status='planned';
+  }
+  drawCorridor(opId);
+  if(droneId)renderDroneCard(droneId);
+  renderOpList();
+}
+
+// ══════════════════════════════════════════════════════
+//  CORRIDOR RENDERING
+// ══════════════════════════════════════════════════════
+function clearCorridor(id){
+  const cl=corrLayers[id];
+  if(!cl)return;
+  [cl.fill,cl.center,...(cl.arrows||[]),...(cl.wps||[])].forEach(l=>{try{map.removeLayer(l);}catch{}});
+  delete corrLayers[id];
+}
+
+function drawCorridor(id){
+  clearCorridor(id);
+  const op=operations[id];
+  if(!op||op.waypoints.length<2)return;
+  const lls=op.waypoints.map(w=>[w.lat,w.lon]);
+  const c=op.color, act=op.status==='active';
+
+  // Buffer fill
+  const fill=L.polyline(lls,{color:c,weight:26,opacity:act?.17:.09,lineCap:'round',lineJoin:'round'}).addTo(map);
+
+  // Center line
+  const center=L.polyline(lls,{color:c,weight:act?2:1.5,opacity:act?.92:.55,dashArray:act?null:'6,5',lineCap:'round'}).addTo(map);
+
+  // Waypoint markers
+  const wps=op.waypoints.map((w,i)=>{
+    const first=i===0,last=i===op.waypoints.length-1;
+    const html=`<div style="width:${first||last?12:8}px;height:${first||last?12:8}px;border-radius:50%;border:2px solid ${c};background:${first?c:'#060a0e'};margin:-${first||last?6:4}px 0 0 -${first||last?6:4}px;position:relative">
+      <span style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:7px;color:${c};background:rgba(5,9,13,.9);padding:1px 3px;white-space:nowrap">${first?'S':last?'E':i}</span></div>`;
+    return L.marker([w.lat,w.lon],{icon:L.divIcon({html,className:'',iconSize:[0,0],iconAnchor:[0,0]}),interactive:false}).addTo(map);
+  });
+
+  // Direction arrows (midpoint of each segment)
+  const arrows=[];
+  for(let i=0;i<lls.length-1;i++){
+    const mid=[(lls[i][0]+lls[i+1][0])/2,(lls[i][1]+lls[i+1][1])/2];
+    const ang=Math.atan2(lls[i+1][1]-lls[i][1],lls[i+1][0]-lls[i][0])*180/Math.PI;
+    const svg=`<svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" style="transform:rotate(${ang-90}deg)">
+      <polygon points="7,1 12,12 7,9 2,12" fill="${c}" opacity="${act?.88:.45}"/></svg>`;
+    arrows.push(L.marker(mid,{icon:L.divIcon({html:svg,className:'',iconSize:[14,14],iconAnchor:[7,7]}),interactive:false}).addTo(map));
+  }
+
+  // Name label near first waypoint
+  const labelHtml=`<div style="font-family:'Orbitron',monospace;font-size:8px;font-weight:700;color:${c};background:rgba(5,9,13,.88);padding:2px 6px;border:1px solid ${c};border-left:3px solid ${c};white-space:nowrap;letter-spacing:1px">${TYPE_ICON[op.type]} ${op.name}</div>`;
+  arrows.push(L.marker(lls[0],{icon:L.divIcon({html:labelHtml,className:'',iconAnchor:[-4,20]}),interactive:false}).addTo(map));
+
+  corrLayers[id]={fill,center,wps,arrows};
+  fill.bringToBack();
+}
+
+function highlightCorridor(id,on){
+  const cl=corrLayers[id],op=operations[id];
+  if(!cl||!op)return;
+  cl.fill.setStyle({opacity:on?.30:op.status==='active'?.17:.09});
+  cl.center.setStyle({opacity:on?1:op.status==='active'?.92:.55,weight:on?3:op.status==='active'?2:1.5});
+}
+
+// ══════════════════════════════════════════════════════
+//  PATH SUGGESTION
+// ══════════════════════════════════════════════════════
+function bezierPath(lat1,lon1,lat2,lon2,offFactor,N=12){
+  const mLat=(lat1+lat2)/2,mLon=(lon1+lon2)/2;
+  const dLat=lat2-lat1,dLon=lon2-lon1;
+  const len=Math.sqrt(dLat*dLat+dLon*dLon)||1e-9;
+  const pLat=-dLon/len,pLon=dLat/len;
+  const cpLat=mLat+pLat*len*offFactor, cpLon=mLon+pLon*len*offFactor;
+  const pts=[];
+  for(let i=0;i<=N;i++){const u=i/N;pts.push({lat:(1-u)**2*lat1+2*(1-u)*u*cpLat+u**2*lat2, lon:(1-u)**2*lon1+2*(1-u)*u*cpLon+u**2*lon2});}
+  return pts;
+}
+
+function scorePath(wpts){
+  const b=map.getBounds();
+  const ls=(b.getNorth()-b.getSouth())/GROWS, lns=(b.getEast()-b.getWest())/GCOLS;
+  let score=0;
+  wpts.forEach(w=>{
+    const c=Math.floor((w.lon-b.getWest())/lns), r=Math.floor((w.lat-b.getSouth())/ls);
+    const k=`${r},${c}`;
+    score+=(trafficGrid[k]||0);
+    // Corridor proximity penalty
+    Object.values(operations).forEach(op=>{
+      op.waypoints.forEach(ow=>{
+        const d=Math.sqrt((w.lat-ow.lat)**2+(w.lon-ow.lon)**2);
+        if(d<0.0008) score+=0.4;
+      });
+    });
+  });
+  return score/wpts.length;
+}
+
+function pathDist(wpts){
+  let d=0;
+  for(let i=1;i<wpts.length;i++) d+=Math.sqrt((wpts[i].lat-wpts[i-1].lat)**2+(wpts[i].lon-wpts[i-1].lon)**2);
+  return (d*111000).toFixed(0);
+}
+
+function riskInfo(s){
+  if(s<0.3)return{txt:'LOW',cls:'risk-lo'};
+  if(s<1.2)return{txt:'MEDIUM',cls:'risk-md'};
+  return{txt:'HIGH',cls:'risk-hi'};
+}
+
+function buildCandidates(sLL,eLL){
+  const {lat:la1,lng:lo1}=sLL,{lat:la2,lng:lo2}=eLL;
+  return [
+    {id:'direct',  label:'DIRECT',    color:'#00e5ff', off:0},
+    {id:'alt-l',   label:'ALT-LEFT',  color:'#bb55ff', off:0.42},
+    {id:'alt-r',   label:'ALT-RIGHT', color:'#ff8833', off:-0.42},
+  ].map(p=>{
+    const wpts=bezierPath(la1,lo1,la2,lo2,p.off);
+    const s=scorePath(wpts), ri=riskInfo(s), dist=pathDist(wpts);
+    return {...p,waypoints:wpts,score:s,risk:ri,dist};
+  });
+}
+
+function drawCandidates(paths){
+  clearCandidates();
+  paths.forEach(p=>{
+    const lls=p.waypoints.map(w=>[w.lat,w.lon]);
+    const fill=L.polyline(lls,{color:p.color,weight:22,opacity:.15,dashArray:'8,4',lineCap:'round'}).addTo(map);
+    const center=L.polyline(lls,{color:p.color,weight:2,opacity:.65,dashArray:'10,6',lineCap:'round'}).addTo(map);
+    candLayers[p.id]={fill,center};
+  });
+}
+
+function clearCandidates(){
+  Object.values(candLayers).forEach(g=>{try{map.removeLayer(g.fill);map.removeLayer(g.center);}catch{}});
+  candLayers={};
+}
+
+function selectCand(id){
+  selCand=id;
+  candPaths.forEach(p=>{
+    const g=candLayers[p.id];
+    if(!g)return;
+    const sel=p.id===id;
+    g.fill.setStyle({opacity:sel?.32:.07,dashArray:sel?null:'8,4'});
+    g.center.setStyle({opacity:sel?1:.2,weight:sel?3:1.5,dashArray:sel?null:'10,6'});
+  });
+  document.querySelectorAll('.path-opt').forEach(el=>el.classList.toggle('sel',el.dataset.pid===id));
+  document.getElementById('confirmPathBtn').style.display='block';
+}
+
+// ══════════════════════════════════════════════════════
+//  MAP INTERACTION
+// ══════════════════════════════════════════════════════
+function onMapClick(e){
+  if(mapMode==='PLACE_WP'){
+    if(!pendOp)return;
+    pendOp.waypoints.push({lat:e.latlng.lat,lon:e.latlng.lng});
+    updateWPPreview();
+    renderWPPanel();
+  } else if(mapMode==='SUG_START'){
+    sugStart=e.latlng;
+    if(sMarker)map.removeLayer(sMarker);
+    sMarker=L.circleMarker(e.latlng,{radius:7,color:'#00ff88',fillColor:'#00ff88',fillOpacity:.6,weight:2}).addTo(map);
+    setMapMode('SUG_END');
+    document.getElementById('suggestPrompt').textContent='SET END POINT ON MAP';
+    document.getElementById('suggestStep').textContent='2 / 2';
+    document.getElementById('suggestSub').textContent='Click to place END';
+  } else if(mapMode==='SUG_END'){
+    const eLL=e.latlng;
+    if(eMarker)map.removeLayer(eMarker);
+    eMarker=L.circleMarker(eLL,{radius:7,color:'#ff8833',fillColor:'#ff8833',fillOpacity:.6,weight:2}).addTo(map);
+    candPaths=buildCandidates(sugStart,eLL);
+    drawCandidates(candPaths);
+    setMapMode('SUG_CHOOSE');
+    renderCandPanel(candPaths);
+  }
+}
+
+function onMapMove(e){
+  if(mapMode==='PLACE_WP'&&pendOp&&pendOp.waypoints.length>0){
+    const last=pendOp.waypoints[pendOp.waypoints.length-1];
+    if(wpPrevCursor)map.removeLayer(wpPrevCursor);
+    wpPrevCursor=L.polyline([[last.lat,last.lon],[e.latlng.lat,e.latlng.lng]],{color:'#00e5ff',weight:1,opacity:.4,dashArray:'3,4'}).addTo(map);
+  }
+}
+
+function setMapMode(m){
+  mapMode=m;
+  const banner=document.getElementById('modeBanner'), desc=document.getElementById('modeDesc');
+  const mapEl=document.getElementById('map');
+  const labels={
+    PLACE_WP:'WAYPOINT PLACEMENT MODE',SUG_START:'PATH SUGGESTION — SET START',
+    SUG_END:'PATH SUGGESTION — SET END',SUG_CHOOSE:'SELECT CORRIDOR BELOW'
+  };
+  if(m==='NORMAL'){banner.classList.remove('show');mapEl.classList.remove('crosshair');}
+  else{desc.textContent=labels[m]||m;banner.classList.add('show');mapEl.classList.add('crosshair');}
+}
+
+function updateWPPreview(){
+  wpPrevDots.forEach(m=>map.removeLayer(m));wpPrevDots=[];
+  if(wpPrevLine){map.removeLayer(wpPrevLine);wpPrevLine=null;}
+  if(!pendOp||!pendOp.waypoints.length)return;
+  const wps=pendOp.waypoints, lls=wps.map(w=>[w.lat,w.lon]);
+  if(lls.length>1) wpPrevLine=L.polyline(lls,{color:'#00e5ff',weight:2,opacity:.7,dashArray:'6,4'}).addTo(map);
+  wps.forEach((w,i)=>{
+    const html=`<div style="width:10px;height:10px;border-radius:50%;border:2px solid #00e5ff;background:${i===0?'#00e5ff':'#060a0e'};position:relative;margin:-5px 0 0 -5px">
+      <span style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:7px;color:#00e5ff;background:rgba(5,9,13,.9);padding:1px 3px">${i+1}</span></div>`;
+    wpPrevDots.push(L.marker([w.lat,w.lon],{icon:L.divIcon({html,className:'',iconSize:[0,0],iconAnchor:[0,0]})}).addTo(map));
+  });
+  document.getElementById('finishWPBtn').disabled=wps.length<2;
+}
+
+function clearWPPreview(){
+  wpPrevDots.forEach(m=>map.removeLayer(m));wpPrevDots=[];
+  if(wpPrevLine){map.removeLayer(wpPrevLine);wpPrevLine=null;}
+  if(wpPrevCursor){map.removeLayer(wpPrevCursor);wpPrevCursor=null;}
+}
+
+function clearSugMarkers(){
+  if(sMarker){map.removeLayer(sMarker);sMarker=null;}
+  if(eMarker){map.removeLayer(eMarker);eMarker=null;}
+}
+
+// ══════════════════════════════════════════════════════
+//  RIGHT PANEL UI
+// ══════════════════════════════════════════════════════
+function showRP(id){
+  ['rpList','rpCreate','rpWP','rpSuggest','rpDetail'].forEach(s=>document.getElementById(s).style.display='none');
+  document.getElementById(id).style.display='flex';
+}
+
+function showOpList(){
+  selOpId=null;
+  setMapMode('NORMAL');
+  showRP('rpList');
+  Object.keys(operations).forEach(id=>highlightCorridor(id,false));
+  renderOpList();
+}
+
+function renderOpList(){
+  const el=document.getElementById('rpList');
+  const ops=Object.values(operations).sort((a,b)=>b.created-a.created);
+  if(!ops.length){el.innerHTML=`<div style="padding:20px;text-align:center;font-size:10px;color:var(--dim)">NO OPERATIONS<br><span style="font-size:9px;opacity:.7">Click + NEW OP to create</span></div>`;return;}
+  el.innerHTML='';
+  ops.forEach(op=>{
+    const d=document.createElement('div');
+    d.className='ocard'+(selOpId===op.id?' sel':'');
+    d.style.borderLeftColor=op.color;
+    const batC=op.assignedDrone&&drones[op.assignedDrone]?`<b style="color:${drones[op.assignedDrone].battery<30?'var(--red)':drones[op.assignedDrone].battery<50?'var(--yellow)':'var(--green)'}">${drones[op.assignedDrone].battery.toFixed(0)}%</b>`:null;
+    d.innerHTML=`
+      <div class="ocard-h">
+        <div class="oname" style="color:${op.color}">${TYPE_ICON[op.type]} ${op.name}</div>
+        <div class="obadge" style="color:${op.status==='active'?'var(--green)':'var(--dim)'};border-color:${op.status==='active'?'var(--green)':'var(--border)'}">${op.status.toUpperCase()}</div>
+      </div>
+      <div class="ometa">TYPE: <b>${op.type.toUpperCase()}</b> &nbsp; WP: <b>${op.waypoints.length}</b> &nbsp; ALT: <b>${op.alt}m</b></div>
+      <div class="ometa">DRONE: <b>${op.assignedDrone?`UAV-${pad2(op.assignedDrone)}`:' —'}</b>${batC?' BAT: '+batC:''}
+      </div>`;
+    d.onclick=()=>showOpDetail(op.id);
+    el.appendChild(d);
+  });
+  document.getElementById('sOps').textContent=ops.length;
+  document.getElementById('fCorr').textContent=ops.length;
+}
+
+function showOpDetail(id){
+  selOpId=id;
+  const op=operations[id];
+  if(!op)return;
+  showRP('rpDetail');
+  Object.keys(operations).forEach(oid=>highlightCorridor(oid,oid===id));
+  map.fitBounds(op.waypoints.map(w=>[w.lat,w.lon]).length>1?op.waypoints.map(w=>[w.lat,w.lon]):[[op.waypoints[0].lat-0.005,op.waypoints[0].lon-0.005],[op.waypoints[0].lat+0.005,op.waypoints[0].lon+0.005]], {padding:[40,40]});
+
+  const opts=Object.values(drones).map(d=>`<option value="${d.id}"${op.assignedDrone===d.id?' selected':''}>UAV-${pad2(d.id)}</option>`).join('');
+  document.getElementById('odBody').innerHTML=`
+    <div class="od-title" style="color:${op.color}">${TYPE_ICON[op.type]} ${op.name}</div>
+    <div style="font-size:9px;color:var(--dim);margin-bottom:8px">${op.type.toUpperCase()} · ${op.status.toUpperCase()} · ${op.waypoints.length} WAYPOINTS</div>
+    <div class="od-grid">
+      <div class="met"><div class="ml">TARGET ALT</div><div class="mv">${op.alt}<em> m</em></div></div>
+      <div class="met"><div class="ml">CORRIDOR</div><div class="mv" style="font-size:10px">${op.waypoints.length-1} SEG</div></div>
+    </div>
+    <div class="od-sep" style="margin-top:8px">DRONE ASSIGNMENT</div>
+    <div class="drone-sel-row" style="margin-top:6px">
+      <select class="fsel" id="dronePickSel" style="flex:1">
+        <option value="">— UNASSIGN —</option>${opts}
+      </select>
+      <button class="btn btn-g btn-sm" onclick="applyAssign('${id}')">SET</button>
+    </div>
+    <div class="od-sep" style="margin-top:8px">WAYPOINTS (${op.waypoints.length})</div>
+    <div style="max-height:150px;overflow-y:auto;margin-top:5px">
+      ${op.waypoints.map((w,i)=>`<div class="wpi"><b>${i===0?'S':i===op.waypoints.length-1?'E':i}</b><span>${w.lat.toFixed(4)}, ${w.lon.toFixed(4)}</span><span style="color:${op.color}">${op.alt}m</span></div>`).join('')}
+    </div>`;
+  document.getElementById('delOpBtn').onclick=()=>deleteOp(id);
+}
+
+function applyAssign(opId){
+  const sel=document.getElementById('dronePickSel');
+  assignDrone(opId, sel.value?+sel.value:null);
+  showOpDetail(opId);
+}
+
+function startCreateOp(){showRP('rpCreate');}
+
+function startManualWP(){
+  const name=(document.getElementById('opName').value.trim()||'OP-UNNAMED');
+  pendOp={name,type:document.getElementById('opType').value,alt:document.getElementById('opAlt').value,waypoints:[]};
+  setMapMode('PLACE_WP');
+  showRP('rpWP');
+  renderWPPanel();
+}
+
+function startSuggestMode(){
+  const name=(document.getElementById('opName').value.trim()||'OP-UNNAMED');
+  pendOp={name,type:document.getElementById('opType').value,alt:document.getElementById('opAlt').value,waypoints:[]};
+  selCand=null;
+  setMapMode('SUG_START');
+  showRP('rpSuggest');
+  document.getElementById('suggestPrompt').textContent='SET START POINT ON MAP';
+  document.getElementById('suggestStep').textContent='1 / 2';
+  document.getElementById('suggestSub').textContent='Click to place START';
+  document.getElementById('pathOptionsList').innerHTML='';
+  document.getElementById('confirmPathBtn').style.display='none';
+}
+
+function renderWPPanel(){
+  if(!pendOp)return;
+  document.getElementById('wpCnt').textContent=pendOp.waypoints.length;
+  document.getElementById('wpItems').innerHTML=pendOp.waypoints.map((w,i)=>`<div class="wpi"><b>WP${i+1}</b><span>${w.lat.toFixed(4)}, ${w.lon.toFixed(4)}</span></div>`).join('');
+  document.getElementById('finishWPBtn').disabled=pendOp.waypoints.length<2;
+}
+
+function renderCandPanel(paths){
+  const sorted=[...paths].sort((a,b)=>a.score-b.score);
+  document.getElementById('pathOptionsList').innerHTML=sorted.map(p=>`
+    <div class="path-opt" data-pid="${p.id}" onclick="selectCand('${p.id}')">
+      <div class="path-label" style="color:${p.color}">${p.label} <span class="risk ${p.risk.cls}">${p.risk.txt}</span></div>
+      <div class="path-meta">~${p.dist}m · CONFLICT SCORE: ${p.score.toFixed(2)}</div>
+    </div>`).join('');
+  document.getElementById('confirmPathBtn').style.display='none';
+}
+
+function undoWP(){if(pendOp&&pendOp.waypoints.length){pendOp.waypoints.pop();updateWPPreview();renderWPPanel();}}
+
+function finishWP(){
+  if(!pendOp||pendOp.waypoints.length<2)return;
+  finalizeOp(pendOp.waypoints);
+}
+
+function confirmPath(){
+  if(!selCand)return;
+  const path=candPaths.find(p=>p.id===selCand);
+  if(!path)return;
+  finalizeOp(path.waypoints);
+}
+
+function finalizeOp(waypoints){
+  if(!pendOp)return;
+  clearWPPreview();
+  clearCandidates();
+  clearSugMarkers();
+  createOp(pendOp.name,pendOp.type,pendOp.alt,waypoints);
+  pendOp=null;selCand=null;
+  setMapMode('NORMAL');
+  showOpList();
+}
+
+function cancelCreate(){
+  clearWPPreview();clearCandidates();clearSugMarkers();
+  pendOp=null;selCand=null;
+  setMapMode('NORMAL');
+  showOpList();
+}
+
+// ══════════════════════════════════════════════════════
+//  SIMULATION
+// ══════════════════════════════════════════════════════
+const SIM_N=7;
+const PATS=[
+  (t,i)=>({lat:HOME.lat+.0022*Math.sin(t*.55+i), lon:HOME.lon+.0032*Math.cos(t*.55+i)}),
+  (t,i)=>({lat:HOME.lat+.0028*Math.sin(t*.35+i*.8), lon:HOME.lon+.0028*Math.sin(t*.7+i*.8)}),
+  (t,i)=>{const r=.001+.0018*(((t*.08+i)%(2*Math.PI))/(2*Math.PI));return{lat:HOME.lat+r*Math.sin(t*.48+i),lon:HOME.lon+r*Math.cos(t*.48+i)};},
+  (t,i)=>{const a=.003,ang=t*.42+i,den=1+Math.sin(ang)**2;return{lat:HOME.lat+a*Math.cos(ang)/den,lon:HOME.lon+a*Math.cos(ang)*Math.sin(ang)/den};},
+  (t,i)=>({lat:HOME.lat+.002*Math.sin(t*.28+i*2.1)*Math.cos(t*.62),lon:HOME.lon+.0025*Math.cos(t*.32+i*1.6)*Math.sin(t*.5)}),
+  (t,i)=>({lat:HOME.lat+.0015*Math.sin(t*.9+i)+.001*Math.cos(t*1.3+i),lon:HOME.lon+.0025*Math.cos(t*.7+i)+.0008*Math.sin(t*1.1+i)}),
+  (t,i)=>({lat:HOME.lat+.003*Math.sin(t*.22+i+1.2)*Math.sin(t*.44+i),lon:HOME.lon+.002*Math.cos(t*.33+i+.8)}),
+];
+
+const WP_STEP=0.00014; // degrees per tick
+
+function simTick(){
+  for(let i=1;i<=SIM_N;i++){
+    const d=drones[i];if(!d)continue;
+    if(d.assignedOp&&operations[d.assignedOp]){
+      const op=operations[d.assignedOp];
+      if(!op.waypoints||op.waypoints.length<2){freeFly(d,i);continue;}
+      if(d.wpIdx===undefined)d.wpIdx=0;
+      const tgt=op.waypoints[d.wpIdx%op.waypoints.length];
+      const dlat=tgt.lat-d.lat, dlon=tgt.lon-d.lon;
+      const dist=Math.sqrt(dlat*dlat+dlon*dlon);
+      if(dist<WP_STEP*2){
+        d.wpIdx=(d.wpIdx+1)%op.waypoints.length;
+      } else {
+        d.lat+=dlat/dist*WP_STEP; d.lon+=dlon/dist*WP_STEP;
+        d.heading=Math.atan2(dlon,dlat)*180/Math.PI;
+        d.alt=op.alt+6*Math.sin(simT*.3+i);
+        d.speed=10+3*Math.sin(simT*.5+i);
+      }
+    } else { freeFly(d,i); }
+    d.battery=Math.max(0,d.battery-.0018);
+    upsertDrone(i,d);
+  }
+}
+
+function freeFly(d,i){
+  const p=PATS[(i-1)%PATS.length](simT,i);
+  const dx=p.lon-d.lon,dy=p.lat-d.lat;
+  d.lat=p.lat;d.lon=p.lon;
+  d.heading=Math.atan2(dx,dy)*180/Math.PI;
+  d.alt=24+i*8+15*Math.sin(simT*.25+i);
+  d.speed=Math.min(25,Math.sqrt(dx*dx+dy*dy)*111000/.1);
+}
+
+function startSim(){
+  simOn=true;
+  document.getElementById('simBtn').classList.add('on');
+  document.getElementById('simBtn').textContent='⚙ SIM ACTIVE';
+  document.getElementById('sdot').classList.add('on');
+  document.getElementById('slbl').textContent='SIM ACTIVE';
+  document.getElementById('modeLbl').textContent='SIMULATION';
+  for(let i=1;i<=SIM_N;i++) upsertDrone(i,{lat:HOME.lat,lon:HOME.lon,alt:30+i*7,speed:5,battery:88+Math.random()*12,heading:0});
+  simTmr=setInterval(()=>{simT+=.1;simTick();updateGrid();updateStats();},100);
+}
+
+function stopSim(){
+  clearInterval(simTmr);simOn=false;
+  document.getElementById('simBtn').classList.remove('on');
+  document.getElementById('simBtn').textContent='⚙ SIM MODE';
+  document.getElementById('sdot').classList.remove('on');
+  document.getElementById('slbl').textContent='DISCONNECTED';
+  document.getElementById('modeLbl').textContent='STANDBY';
+}
+
+function toggleSim(){if(simOn)stopSim();else{if(ws)ws.close();startSim();}}
+
+// ══════════════════════════════════════════════════════
+//  WEBSOCKET / mavlink2rest
+// ══════════════════════════════════════════════════════
+function connectWS(){
+  if(simOn)stopSim();
+  const url=document.getElementById('wsUrl').value.trim();
+  if(!url)return;
+  if(ws){ws.close();ws=null;}
+  try{
+    ws=new WebSocket(url);
+    ws.onopen=()=>{document.getElementById('sdot').classList.add('on');document.getElementById('slbl').textContent='LIVE';document.getElementById('modeLbl').textContent='LIVE DATA';};
+    ws.onclose=()=>{document.getElementById('sdot').classList.remove('on');document.getElementById('slbl').textContent='DISCONNECTED';document.getElementById('modeLbl').textContent='STANDBY';};
+    ws.onerror=()=>{document.getElementById('slbl').textContent='ERROR';};
+    ws.onmessage=(e)=>{try{parseMav(JSON.parse(e.data));}catch{}};
+  }catch{document.getElementById('slbl').textContent='FAILED';}
+}
+
+function parseMav(msg){
+  const sid=msg?.header?.system_id;if(!sid||sid===255)return;
+  const tp=msg?.message?.type,m=msg?.message;
+  if(tp==='GLOBAL_POSITION_INT'){const vx=m.vx/100,vy=m.vy/100;upsertDrone(sid,{lat:m.lat/1e7,lon:m.lon/1e7,alt:m.relative_alt/1000,speed:Math.sqrt(vx*vx+vy*vy),heading:m.hdg?m.hdg/100:0});}
+  else if(tp==='SYS_STATUS'){const br=m.battery_remaining;if(br>=0)upsertDrone(sid,{battery:br});else if(m.voltage_battery>0)upsertDrone(sid,{battery:Math.max(0,Math.min(100,((m.voltage_battery/1000-3.3)/.9)*100))});}
+  else if(tp==='VFR_HUD'){upsertDrone(sid,{speed:m.groundspeed,alt:m.alt});}
+  else if(tp==='ATTITUDE'){upsertDrone(sid,{heading:(m.yaw*180/Math.PI+360)%360});}
+  updateGrid();updateStats();
+}
+
+// ══════════════════════════════════════════════════════
+//  STATS & CLOCK
+// ══════════════════════════════════════════════════════
+function updateStats(){
+  const list=Object.values(drones);
+  document.getElementById('sA').textContent=list.length;
+  document.getElementById('sOps').textContent=Object.keys(operations).length;
+  if(list.length){
+    const avg=fn=>(list.reduce((s,d)=>s+fn(d),0)/list.length).toFixed(1);
+    document.getElementById('sAlt').textContent=avg(d=>d.alt)+' m';
+    document.getElementById('sSpd').textContent=avg(d=>d.speed)+' m/s';
+  }
+}
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toISOString().slice(11,19);},500);
+
+// ══════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════
+function pad2(n){return String(n).padStart(2,'0');}
+
+// ══════════════════════════════════════════════════════
+//  SAMPLE OPERATIONS (pre-loaded for demo)
+// ══════════════════════════════════════════════════════
+function loadSampleOps(){
+  const H=HOME;
+  // Patrol: square loop
+  createOp('PATROL-ALPHA','patrol',50,[
+    {lat:H.lat+.0025,lon:H.lon+.004},
+    {lat:H.lat+.0025,lon:H.lon-.004},
+    {lat:H.lat-.0025,lon:H.lon-.004},
+    {lat:H.lat-.0025,lon:H.lon+.004},
+  ],{drone:1});
+
+  // Survey: parallel grid lines
+  createOp('SURVEY-BRAVO','survey',80,[
+    {lat:H.lat-.003,lon:H.lon+.0012},
+    {lat:H.lat+.003,lon:H.lon+.0012},
+    {lat:H.lat+.003,lon:H.lon+.0004},
+    {lat:H.lat-.003,lon:H.lon+.0004},
+    {lat:H.lat-.003,lon:H.lon-.0004},
+    {lat:H.lat+.003,lon:H.lon-.0004},
+  ],{drone:2});
+
+  // Delivery: A to B curved
+  createOp('DELIVERY-CHARLIE','delivery',40,[
+    {lat:H.lat-.0030,lon:H.lon-.0025},
+    {lat:H.lat-.0010,lon:H.lon-.0005},
+    {lat:H.lat+.0015,lon:H.lon+.0015},
+    {lat:H.lat+.0032,lon:H.lon+.0038},
+  ],{drone:3});
+
+  // Search: expanding pattern (no drone initially)
+  createOp('SEARCH-DELTA','search',60,[
+    {lat:H.lat+.0010,lon:H.lon-.003},
+    {lat:H.lat+.0010,lon:H.lon+.003},
+    {lat:H.lat-.0010,lon:H.lon+.003},
+    {lat:H.lat-.0010,lon:H.lon-.003},
+    {lat:H.lat-.0020,lon:H.lon-.0038},
+    {lat:H.lat+.0020,lon:H.lon+.0038},
+  ]);
+}
+
+// ══════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════
+showOpList();
+setTimeout(()=>{
+  startSim();
+  setTimeout(loadSampleOps, 600);
+},400);
+</script>
+</body>
+</html>
